@@ -1,15 +1,15 @@
-# FISOC-FVCOM-WWIII-XY
-FISOC_FVCOM_WWIII_XY is a coupled modeling system that integrates FISOC, FVCOM, and WaveWatch III (WW3) using Cartesian coordinates.
+# FISOC-FVCOM-WWIII-Cartesian
+FISOC_FVCOM_WWIII_Cartesian is a coupled modeling system that integrates FISOC, FVCOM, and WaveWatch III (WW3) using Cartesian coordinates.
 
 
-FISOC_FVCOM_WWIII_XY
+FISOC_FVCOM_WWIII_Cartesian
 
 Cartesian-Coordinate FISOC–FVCOM–WW3 Coupler Model
 Modified from FISOC_FVCOM_SWAN by Jianhua Qi, SMAST, UMassD (2025)
 
 Overview
 
-FISOC_FVCOM_WWIII_XY is a coupled modeling system that integrates FISOC, FVCOM, and WaveWatch III (WW3) using Cartesian coordinates.
+FISOC_FVCOM_WWIII_Cartesian is a coupled modeling system that integrates FISOC, FVCOM, and WaveWatch III (WW3) using Cartesian coordinates.
 
 The package includes:
 
@@ -106,5 +106,5 @@ Run the following utilities in the folder ww3_input:
 
    ww3_input/run_shel/field_netcdf/
 
-   or find the output file of FVCOM in the folder FISOC_FVCOM_WWIII_XY/FISOC_FVCOM_WWIII/Ex6_Inlets_realtime/output/
+   or find the output file of FVCOM in the folder FISOC_FVCOM_WWIII_Cartesian/FISOC_FVCOM_WWIII/Ex6_Inlets_realtime/output/
 
