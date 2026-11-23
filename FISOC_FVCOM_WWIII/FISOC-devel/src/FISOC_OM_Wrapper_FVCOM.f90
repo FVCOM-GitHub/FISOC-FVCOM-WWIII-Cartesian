@@ -40,6 +40,10 @@ MODULE FISOC_OM_Wrapper
   ! nodal distgrid, an ESMF object holding information about the distribution of 
   ! FVCOM nodes across partitions, needed for the one to many mapping.
   TYPE(ESMF_distgrid),SAVE     :: distgridFVCOM
+!@----> Ki-Hwan Kim@20261117
+  TYPE(ESMF_Array),SAVE :: importArray
+  LOGICAL,SAVE :: importArrayReady = .FALSE.
+!@<---- Ki-Hwan Kim@20261117
 
 CONTAINS
   
@@ -377,6 +381,14 @@ CONTAINS
     IF (localPet.EQ.0) THEN
        WRITE (OM_outputUnit,*) 'FISOC is about to call FVCOM finalize.'
     END IF
+!@----> Ki-Hwan Kim@20261117
+    IF (importArrayReady) THEN
+      CALL ESMF_ArrayDestroy(importArray, rc=rc)
+      IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+           line=__LINE__, file=__FILE__)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+      importArrayReady = .FALSE.
+    END IF
+!@<---- Ki-Hwan Kim@20261117
     CALL FVCOM_finalize()
     IF (localPet.EQ.0) THEN
        WRITE (OM_outputUnit,*) 'FISOC has just called FVCOM finalize.'
@@ -529,14 +541,15 @@ CONTAINS
            CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
       
       IF (FISOC_WM2OM(fieldName,FISOC_config,rc=rc)) THEN
-
-        CALL FISOC_ArrayRedistFromField(RH_ESMF2FVCOM,fieldList(nn),distgridFVCOM,ptr)
-      
+!@----> Ki-Hwan Kim@20261117
+!@        CALL FISOC_ArrayRedistFromField(RH_ESMF2FVCOM,fieldList(nn),distgridFVCOM,ptr)
+        CALL FISOC_ArrayRedistFromField(RH_ESMF2FVCOM,fieldList(nn),distgridFVCOM,ptr,importArray,importArrayReady)
+!@<---- Ki-Hwan Kim@20261117
         SELECT CASE (TRIM(ADJUSTL(fieldName)))
          
         CASE ('WM_HS')
           HSC1(1:size(ptr)) = ptr
-	  WHERE(HSC1 < 0.0) HSC1 = 0.0
+          WHERE(HSC1 < 0.0) HSC1 = 0.0
         CASE ('WM_DIR')
           DIRDEG1(1:size(ptr)) = ptr
         CASE ('WM_TPEAK')

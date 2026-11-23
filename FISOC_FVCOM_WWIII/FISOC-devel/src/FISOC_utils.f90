@@ -2984,26 +2984,43 @@ CONTAINS
   !
   ! Written for application of FISOC_CreateOneToManyRouteHandle.
   !
-  SUBROUTINE FISOC_ArrayRedistFromField(RH,sourceField,distgridDest,destArrPtr)
+!@----> Ki-Hwan Kim@20261117
+!@  SUBROUTINE FISOC_ArrayRedistFromField(RH,sourceField,distgridDest,destArrPtr)
+  SUBROUTINE FISOC_ArrayRedistFromField(RH,sourceField,distgridDest,destArrPtr,destArray,destArrayReady)
+!@<---- Ki-Hwan Kim@20261117
     TYPE(ESMF_routeHandle),INTENT(INOUT) :: RH
     TYPE(ESMF_field),INTENT(IN)          :: sourceField
     TYPE(ESMF_distgrid),INTENT(IN)       :: distgridDest
     REAL(ESMF_KIND_R8),POINTER           :: destArrPtr(:)
 
-    TYPE(ESMF_Array)                     :: sourceArray, destArray
+!@----> Ki-Hwan Kim@20261117
+    TYPE(ESMF_Array),INTENT(INOUT)        :: destArray
+    LOGICAL,INTENT(INOUT)                :: destArrayReady
+    TYPE(ESMF_Array)                     :: sourceArray
+!@    TYPE(ESMF_Array)                     :: sourceArray, destArray
     INTEGER                              :: rc
-    
+!@<---- Ki-Hwan Kim@20261117
+
     CALL ESMF_FieldGet(sourceField, array=sourceArray, rc=rc)
     IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) &
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
     
-    ! we need to create a dest array on the fly (and then convert from the 
-    ! array to the dest variable after the redist)
-    destArray = ESMF_ArrayCreate(distgridDest, ESMF_TYPEKIND_R8, rc=rc)
-    IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__)) &
-         CALL ESMF_Finalize(endflag=ESMF_END_ABORT)       
+!@----> Ki-Hwan Kim@20261117
+!@    ! we need to create a dest array on the fly (and then convert from the 
+!@    ! array to the dest variable after the redist)
+!@    destArray = ESMF_ArrayCreate(distgridDest, ESMF_TYPEKIND_R8, rc=rc)
+!@    IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+!@         line=__LINE__, file=__FILE__)) &
+!@         CALL ESMF_Finalize(endflag=ESMF_END_ABORT)       
+    ! The caller owns this reusable array and destroys it during finalization.
+    IF (.NOT. destArrayReady) THEN
+      destArray = ESMF_ArrayCreate(distgridDest, ESMF_TYPEKIND_R8, rc=rc)
+      IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+           line=__LINE__, file=__FILE__)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+      destArrayReady = .TRUE.
+    END IF
+!@<---- Ki-Hwan Kim@20261117
     
     ! now redist the source array onto the dest array
     CALL ESMF_ArrayRedist(sourceArray, destArray, RH, rc=rc)

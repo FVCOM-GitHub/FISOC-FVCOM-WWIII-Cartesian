@@ -1,36 +1,9 @@
-!/===========================================================================/
-! Copyright (c) 2025 The University of Massachusetts Dartmouth 
-! Produced at the School of Marine Science & Technology 
-! Marine Ecosystem Dynamics Modeling group
-! All rights reserved.
-!
-! FVCOM has been developed by the joint UMASSD-WHOI research team. For 
-! details of authorship and attribution of credit please see the FVCOM
-! technical manual or contact the MEDM group.
-!
-! 
-! This file is part of FVCOM. For details, see http://www.fvcom.org. 
-! The full copyright notice is contained in the file COPYRIGHT located in the 
-! root directory of the FVCOM code. This original header must be maintained
-! in all distributed versions.
-!
-! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-! AND ANY EXPRESS OR  IMPLIED WARRANTIES, INCLUDING,  BUT NOT  LIMITED TO,
-! THE IMPLIED WARRANTIES OF MERCHANTABILITY AND  FITNESS FOR A PARTICULAR
-! PURPOSE ARE DISCLAIMED.  
-!
-!/---------------------------------------------------------------------------/
 #include "w3macros.h"
 
 # define W3_PDLIB
 # define W3_MPI
 
 MODULE FISOC_WW3
-  !
-  !  1. Readme:
-  !
-  !     This module was modified from WW3 V7.14 PROGRAM W3SHEL by Jianhua Qi at SMAST,UMASSD
-  !
   !  8. Structure :
   !
   !     ----------------------------------------------------------------
@@ -341,13 +314,16 @@ MODULE FISOC_WW3
 !    ELSE
 #endif
 #ifdef W3_MPI
+!print*,"STOP HERE??????????   -2"
 !      CALL MPI_INIT      ( IERR_MPI )
+!print*,"STOP HERE??????????   -1"
 #endif
 #ifdef W3_OMPH
 !    ENDIF
 #endif
 
 #ifdef W3_MPI
+!    MPI_COMM = MPI_COMM_WORLD
     MPI_COMM = MPI_COMM_opt
 #endif
 #ifdef W3_OASIS
@@ -456,6 +432,8 @@ MODULE FISOC_WW3
 #endif
 
 
+!print*,"STOP HERE??????????"
+  !
   ! 1.b For WAVEWATCH III (See W3INIT)
   !
   NDS( 1) = 20
@@ -544,6 +522,7 @@ MODULE FISOC_WW3
 #endif
 
 !  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 2a')
+print*,"STOP HERE??????????    1"
   !
   !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! 2.  Define input fields
@@ -637,12 +616,7 @@ MODULE FISOC_WW3
       FLAGTFC(6)='T'
       FLH(6)=.TRUE.
     END IF
-!JQI<
-    FLAGTFC(1)='C'
-    FLH(1)=.FALSE.       !.TRUE.
-    FLAGTFC(2)='C'
-    FLH(2)=.FALSE.       !.TRUE.
-!JQI>
+
     IF ( IAPROC .EQ. NAPOUT ) WRITE (NDSO,920)
     DO J=JFIRST, 9
       IF (FLAGTFC(J).EQ.'T') THEN
@@ -716,6 +690,9 @@ MODULE FISOC_WW3
     WRITE (NDST,9020) FLFLG, INFLAGS1, FLHOM, FLH
 #endif
 
+print*,"STOP HERE??????????   2"
+
+
     ! 2.2 Time setup
 
     READ(NML_DOMAIN%START,*) TIME0
@@ -725,6 +702,7 @@ MODULE FISOC_WW3
     CALL T2D(TIMEN,STOPDATE,IERR)
     CALL D2J(STOPDATE,STOPJULDAY,IERR)
 
+print*,"STOP HERE??????????   3"
     ! 2.3 Domain setup
 
     IOSTYP = NML_DOMAIN%IOSTYP
@@ -743,6 +721,7 @@ MODULE FISOC_WW3
       FACTOR = 1.E-3
     END IF
 
+print*,"STOP HERE??????????   4"
     ! 2.4 Output dates
 
     READ(NML_OUTPUT_DATE%FIELD%START, *)   ODAT(1), ODAT(2)
@@ -800,6 +779,7 @@ MODULE FISOC_WW3
     END IF
 #endif
     !
+print*,"STOP HERE??????????   5"
     ! 2.5 Output types
 
     NPTS   = 0
@@ -940,6 +920,7 @@ MODULE FISOC_WW3
     ! force minimal allocation to avoid memory seg fault
     IF ( .NOT.ALLOCATED(X) .AND. NPTS.EQ.0 ) ALLOCATE ( X(1), Y(1), PNAMES(1) )
 
+print*,"STOP HERE??????????   6"
     ! 2.6 Homogeneous field data
 
     IF ( FLHOM ) THEN
@@ -1552,6 +1533,10 @@ MODULE FISOC_WW3
 
   END IF
 
+
+
+print*,'STOP HERE?????? 2.1'
+
   !
   ! ----------------
   !
@@ -1603,6 +1588,7 @@ MODULE FISOC_WW3
   END IF ! FLFLG
 
 !  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 4')
+print*,'STOP HERE?????? 2.2'
 
   ! 2.2 Time setup
 
@@ -1623,6 +1609,8 @@ MODULE FISOC_WW3
   DTTST  = DSEC21 ( TIME0 , TIMEN )
   IF ( DTTST .LE. 0. ) GOTO 2003
 
+
+print*,'STOP HERE?????? 2.3'
   ! 2.3 Domain setup
 
   IOSTYP = MAX ( 0 , MIN ( 3 , IOSTYP ) )
@@ -1650,6 +1638,7 @@ MODULE FISOC_WW3
   END IF
 
 
+print*,'STOP HERE?????? 2.4'
   ! 2.4 Output dates
 
   DO J = 1, NOTYPE
@@ -1712,7 +1701,7 @@ MODULE FISOC_WW3
       END IF
     END IF
   END IF
-
+print*,'STOP HERE?????? 2.5'
   !
   ! 2.5 Output types
 
@@ -1760,6 +1749,7 @@ MODULE FISOC_WW3
   END IF
   !
 !  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 5')
+print*,'STOP HERE? 5',IAPROC, NAPOUT
   !
   !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! 5.  Initializations
@@ -1789,9 +1779,11 @@ MODULE FISOC_WW3
   !
   OARST = ANY(FLOGR)
   !
+print*,'STOP HERE? 5-1'
   CALL W3INIT ( 1, .FALSE., 'ww3', NDS, NTRACE, ODAT, FLGRD, FLGR2, FLGD,    &
        FLG2, NPTS, X, Y, PNAMES, IPRT, PRTFRM, MPI_COMM,   &
        FLAGSTIDEIN=FLAGSTIDE )
+print*,'STOP HERE? 5-2'
   !
   !      IF (MINVAL(VA) .LT. 0.) THEN
   !        WRITE(740+IAPROC,*) 'NEGATIVE ACTION SHELL 5', MINVAL(VA)
@@ -1848,6 +1840,7 @@ MODULE FISOC_WW3
   !
   ! Error escape locations
   !
+print*,'STOP HERE? 6',IAPROC, NAPERR
 2000 CONTINUE
   IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1000) IERR
   CALL EXTCDE ( 1000 )
@@ -2189,6 +2182,21 @@ SUBROUTINE FISOC_WW3_RUN(START_DATE_opt,END_DATE_opt)
     READ(TE, '(i6)') TIMEN(2) 
    END IF 
    
+   print*,'DS DE = ',DS,' ',DE,' ',TS,' ',TE 
+   print*,'TIME0 TIMEN = ',TIME0,TIMEN 
+
+
+!@----> Ki-Hwan Kim@20261117
+  ! The coupler provides one water level field for this integration window.
+  IF (FLAGSC(1)) TLN = TIME0
+  IF (FLAGSC(2)) THEN
+    TC0 = TIME0
+    TCN = TIMEN
+  END IF
+!@<---- Ki-Hwan Kim@20261117
+
+print*,"FLFLG = ",FLFLG
+
   IF ( .NOT. FLFLG ) THEN
     !
     IF ( IAPROC .EQ. NAPOUT ) WRITE (NDSO,960)
@@ -2214,17 +2222,21 @@ SUBROUTINE FISOC_WW3_RUN(START_DATE_opt,END_DATE_opt)
   TTIME  = TIMEN
   !
   CALL STME21 ( TIME0 , DTME21 )
-
+print*,"TTIME = ",TTIME,TIMEN,TIME0 , DTME21
   IF ( IAPROC .EQ. NAPOUT ) WRITE (NDSO,971) DTME21
   !
   !
 !  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 7')
 
-!JQI<
-  INFLAGS1(1) = .FALSE.
-  INFLAGS1(2) = .FALSE.
-!JQI>
+PRINT*, "JFIRST = ",JFIRST
   DO J=JFIRST,10
+
+!@----> Ki-Hwan Kim@20261117
+    ! Coupled ocean inputs have already been supplied by the FISOC wrapper.
+    IF (J >= 1 .AND. J <= 2) THEN
+      IF (FLAGSC(J)) CYCLE
+    END IF
+!@<---- Ki-Hwan Kim@20261117
     !
     write(jchar, '(i0)') j
 !    call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL UPDATE '//trim(jchar))
@@ -2350,7 +2362,9 @@ SUBROUTINE FISOC_WW3_RUN(START_DATE_opt,END_DATE_opt)
   !
   TIME0  = TTIME
   !
+print*,"TIME0 = ",TTIME,TIME0
   CALL W3WAVE ( 1, ODAT, TIME0)
+print*,"AFTER W3WAVE"
 !  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 9')
   !
   ! The following lines prevents us from trying to read past the end
@@ -2400,6 +2414,7 @@ SUBROUTINE FISOC_WW3_RUN(START_DATE_opt,END_DATE_opt)
 
   DTTST  = DSEC21 ( TIME0 , TIMEN )
   
+  print*,'DTTST = ', DTTST,TIME0,TIMEN
   IF ( DTTST .GT. 0. ) GOTO 700
   !
   !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

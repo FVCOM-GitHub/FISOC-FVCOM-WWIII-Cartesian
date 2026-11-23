@@ -1,28 +1,6 @@
-!/===========================================================================/
-! Copyright (c) 2025 The University of Massachusetts Dartmouth 
-! Produced at the School of Marine Science & Technology 
-! Marine Ecosystem Dynamics Modeling group
-! All rights reserved.
-!
-! FVCOM has been developed by the joint UMASSD-WHOI research team. For 
-! details of authorship and attribution of credit please see the FVCOM
-! technical manual or contact the MEDM group.
-!
-! 
-! This file is part of FVCOM. For details, see http://fvcom.smast.umassd.edu 
-! The full copyright notice is contained in the file COPYRIGHT located in the 
-! root directory of the FVCOM code. This original header must be maintained
-! in all distributed versions.
-!
-! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-! AND ANY EXPRESS OR  IMPLIED WARRANTIES, INCLUDING,  BUT NOT  LIMITED TO,
-! THE IMPLIED WARRANTIES OF MERCHANTABILITY AND  FITNESS FOR A PARTICULAR
-! PURPOSE ARE DISCLAIMED.  
-!
-!/---------------------------------------------------------------------------/
 
 !
-! This is the wave model spcific code for FISOC.  The main purpose is to transfer information 
+! This is the ocean model spcific code for FISOC.  The main purpose is to transfer information 
 ! between ESMF structures and the WM's internal structures.
 !
 
@@ -37,8 +15,15 @@ MODULE FISOC_WM_Wrapper
   USE MOD_PAR
   USE W3ADATMD, ONLY : HS,FP0,THM,WLM,NSEALM
   USE W3IDATMD, ONLY : WLEV,CXN,CYN
+!@----> Ki-Hwan Kim@20261117
+  USE W3IDATMD, ONLY : CX0,CY0,FLAGSC
+!@<---- Ki-Hwan Kim@20261117
   USE W3GDATMD, ONLY : XGRD,YGRD         !NGRIDS,IGRID,NSEA,NSEAL
+!  USE SwanGriddata 
   USE W3GDATMD, ONLY: NX,NTRI
+!@----> Ki-Hwan Kim@20261117
+  USE W3GDATMD, ONLY: NSEA,MAPSF,ZB
+!@<---- Ki-Hwan Kim@20261117
   use yowNodepool, only: npa,np,ng,iplg,ipgl
   use yowElementpool, only : INE, NE, ielg
   IMPLICIT NONE
@@ -60,6 +45,10 @@ MODULE FISOC_WM_Wrapper
   ! nodal distgrid, an ESMF object holding information about the distribution of 
   ! WW3 nodes across partitions, needed for the one to many mapping.
   TYPE(ESMF_distgrid),SAVE     :: distgridWW3
+!@----> Ki-Hwan Kim@20261117
+  TYPE(ESMF_Array),SAVE :: importArray
+  LOGICAL,SAVE :: importArrayReady = .FALSE.
+!@<---- Ki-Hwan Kim@20261117
 
 CONTAINS
   
@@ -134,13 +123,23 @@ CONTAINS
          line=__LINE__, file=__FILE__)) &
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-    CALL FISOC_WW3_INIT(MPI_COMM_opt=mpic)
+!print*,"STOP HERE?????????? 002"
+    !CALL SWAN_initialize(casename_opt=WM_configFile, MPI_COMM_opt=mpic)
+!    CALL SWAN_initialize(MPI_COMM_opt=mpic)
+  CALL FISOC_WW3_INIT(MPI_COMM_opt=mpic)
+!  CALL W3INIT ( 1, .FALSE., 'ww3', NDS, NTRACE, ODAT, FLGRD, FLGR2, FLGD,    &
+!       FLG2, NPTS, X, Y, PNAMES, IPRT, PRTFRM, MPI_COMM,   &
+!       FLAGSTIDEIN=FLAGSTIDE )
+    !IF (localPet.EQ.0) THEN
+    !   CALL SWAN_initialize
+    !END IF
 
     IF (localPet.EQ.0) THEN
       WRITE (WM_outputUnit,*) 'FISOC has just called WW3 init method.'
     END IF
     
     CALL WW32ESMF_mesh(FISOC_config,WM_mesh,vm,rc=rc)
+    !CALL make_swan_mesh(FISOC_config,WM_mesh,vm,rc=rc)
 
     IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) &
@@ -278,6 +277,7 @@ CONTAINS
          line=__LINE__, file=__FILE__)) &
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
     WM_dt_sec_float = REAL(WM_dt_sec,ESMF_KIND_R8)
+!JQI    print*,'WM_dt_sec_float = ',WM_dt_sec_float
 
     ! ...convert to ESMF type...
     CALL ESMF_TimeIntervalSet(WM_dt, s=WM_dt_sec, rc=rc)
@@ -310,14 +310,16 @@ CONTAINS
              line=__LINE__, file=__FILE__, rc=rc)
       END IF
     END IF
+!JQI    print*,'interval_startTime,interval_endTime = ',interval_startTime_char,interval_endTime_char
 
     CALL ESMF_VMBarrier(vm, rc=rc)
+!    CALL SWAN_run()
+  !
     CALL FISOC_WW3_RUN(START_DATE_opt=interval_startTime_char,END_DATE_opt=interval_endTime_char)
+
     CALL ESMF_VMBarrier(vm, rc=rc)
     IF (localPet.EQ.0) THEN
-    
-!      WRITE (WM_outputUnit,*) 'FISOC has just called WW3 run method.'
-  
+      WRITE (WM_outputUnit,*) 'FISOC has just called WW3 run method.'
     END IF
     
     IF (PRESENT(WM_ExpFB)) THEN
@@ -399,7 +401,15 @@ CONTAINS
     IF (localPet.EQ.0) THEN
        WRITE (WM_outputUnit,*) 'FISOC is about to call SWAN finalize.'
     END IF
-
+!@----> Ki-Hwan Kim@20261117
+    IF (importArrayReady) THEN
+      CALL ESMF_ArrayDestroy(importArray, rc=rc)
+      IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+           line=__LINE__, file=__FILE__)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+      importArrayReady = .FALSE.
+    END IF
+!@<---- Ki-Hwan Kim@20261117
+!    CALL SWAN_finalize()
     CALL FISOC_WW3_FINAL
     IF (localPet.EQ.0) THEN
        WRITE (WM_outputUnit,*) 'FISOC has just called SWAN finalize.'
@@ -438,7 +448,11 @@ CONTAINS
     CHARACTER(len=ESMF_MAXSTR)            :: fieldName
     REAL(ESMF_KIND_R8),POINTER            :: ptr(:)
     INTEGER                               :: IstrR, IendR, JstrR, JendR ! tile start and end coords
-    INTEGER                               :: ii, jj, nn
+!@----> Ki-Hwan Kim@20261117
+!@    INTEGER                               :: ii, jj, nn
+    INTEGER                               :: ii, jj, nn, node !@ Ki-Hwan Kim@20261117
+    REAL(ESMF_KIND_R8),PARAMETER :: piWave = ACOS(-1.0_ESMF_KIND_R8)
+!@<---- Ki-Hwan Kim@20261117
 !    INTEGER                               :: LBi, UBi, LBj, UBj ! tile start and end coords including halo
 
     rc = ESMF_FAILURE
@@ -481,12 +495,19 @@ CONTAINS
          END DO
        CASE ('WM_DIR')
          DO ii = 1,SIZE(ptr)
-           ptr(ii) = THM(ownedNodeIds(ii))
+!@           ptr(ii) = THM(ownedNodeIds(ii))
+           ! FVCOM radiation stress uses propagation direction in degrees from +x.
+           ptr(ii) = MODULO(REAL(THM(ownedNodeIds(ii)),ESMF_KIND_R8)*180.0_ESMF_KIND_R8/piWave, &
+                360.0_ESMF_KIND_R8)
          END DO
        CASE ('WM_TPEAK')
          DO ii = 1,SIZE(ptr)
-           ptr(ii) = FP0(ownedNodeIds(ii))
+!@---->qxu{
+!@           ptr(ii) = FP0(ownedNodeIds(ii))
+           ptr(ii) = 1.0/(FP0(ownedNodeIds(ii)) + 1.0E-8)
+!@<----}qxu
          END DO
+!@----> TODO
        CASE ('WM_TMBOT')
          DO ii = 1,SIZE(ptr)
            ptr(ii) = HS(ownedNodeIds(ii))
@@ -507,6 +528,7 @@ CONTAINS
          DO ii = 1,SIZE(ptr)
            ptr(ii) = HS(ownedNodeIds(ii))
          END DO
+!@<---- TODO
        CASE DEFAULT
          msg = "ERROR: unknown variable: "//TRIM(ADJUSTL(fieldName))
          CALL ESMF_LogWrite(msg, logmsgFlag=ESMF_LOGMSG_ERROR, &
@@ -542,17 +564,30 @@ CONTAINS
     INTEGER                               :: IstrR, IendR, JstrR, JendR ! tile start and end coords
     INTEGER                               :: ii, jj, nn
 
-    REAL, ALLOCATABLE, TARGET :: CXN_TMP(:,:),CYN_TMP(:,:),WLEV_TMP(:,:)
-    integer, dimension(:), allocatable :: ivertp   ! vertex index of global grid in own subdomain (without ghost vertices)
-    INTEGER                               :: j, k
+!@----> Ki-Hwan Kim@20261117
+    ! Reuse global input buffers between coupling calls.
+    REAL, ALLOCATABLE, SAVE :: localInput(:), globalInput(:)
+    integer, dimension(:), allocatable, save :: ivertp   ! vertex index of global grid in own subdomain (without ghost vertices)
+    INTEGER                               :: j, mpiError, globalNode
+    LOGICAL                               :: received(4)
+!@<---- Ki-Hwan Kim@20261117
 
     rc = ESMF_FAILURE
+
+!@----> Ki-Hwan Kim@20261117
+    received = .FALSE.
+    IF (.NOT. ALLOCATED(localInput)) ALLOCATE(localInput(NX), globalInput(NX))
+    IF (SIZE(localInput) /= NX) THEN
+       CALL ESMF_LogWrite("WW3 grid size changed during coupling", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+       CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+    END IF
 
     CALL ESMF_VMGet(vm, localPet=localPet, petCount=petCount, rc=rc)
     IF (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU,    &
          line=__LINE__, file=__FILE__)) &
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
-        
+!@<---- Ki-Hwan Kim@20261117
+
     ! get a list of fields and their names from the WM export field bundle
     fieldCount = 0
     CALL ESMF_FieldBundleGet(WM_ImpFB, fieldCount=fieldCount, rc=rc)
@@ -565,16 +600,32 @@ CONTAINS
          line=__LINE__, file=__FILE__)) &
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
     
+!@----> Ki-Hwan Kim@20261117
     ! determine node number per subdomain
     !
-    allocate(ivertp(NP))
-    k = 0
-    do j = 1, NP       !NPA
-       if ( iplg(j) > 0 ) then
-          k = k + 1
-          ivertp(k) = iplg(j) 
-       endif
+!@    allocate(ivertp(NP))
+!@    k = 0
+!@    do j = 1, NP       !NPA
+!@       if ( iplg(j) > 0 ) then
+!@          k = k + 1
+!@          ivertp(k) = iplg(j) 
+!@ !JQI	  write(300+localPET,*) j,k,ivertp(k),iplg(j)               
+!@       endif
+!@    enddo
+
+    IF (ALLOCATED(ivertp)) THEN
+       IF (SIZE(ivertp) /= NP) DEALLOCATE(ivertp)
+    END IF
+    IF (.NOT. ALLOCATED(ivertp)) ALLOCATE(ivertp(NP))
+    do j = 1, NP
+       ! Preserve the original local index so ivertp(j) matches ptr(j).
+       ivertp(j) = iplg(j)
+       IF (ivertp(j) < 1 .OR. ivertp(j) > NX) THEN
+          CALL ESMF_LogWrite("Invalid owned WW3 node ID in ivertp", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+       END IF
     enddo
+!@<---- Ki-Hwan Kim@20261117
     
     fieldLoop: DO nn = 1,fieldCount
       
@@ -584,39 +635,129 @@ CONTAINS
            CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
       
       IF (FISOC_OM2WM(fieldName,FISOC_config,rc=rc)) THEN
-
-        CALL FISOC_ArrayRedistFromField(RH_ESMF2WW3,fieldList(nn),distgridWW3,ptr)
-	
+!@----> Ki-Hwan Kim@20261117
         SELECT CASE (TRIM(ADJUSTL(fieldName)))
-         
-       CASE ('OM_UU')
+        CASE ('OM_ETA')
+           IF (.NOT. FLAGSC(1)) CYCLE fieldLoop
+        CASE ('OM_UU','OM_VV')
+           IF (.NOT. FLAGSC(2)) CYCLE fieldLoop
+        CASE ('OM_HH')
+           IF (.NOT. FLAGSC(1)) THEN
+              CALL ESMF_LogWrite("OM_HH requires WATER_LEVELS=C to refresh WW3 depth", &
+                   logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+              CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+           END IF
+        END SELECT
+!@<---- Ki-Hwan Kim@20261117
+!@        CALL FISOC_ArrayRedistFromField(RH_ESMF2WW3,fieldList(nn),distgridWW3,ptr)
+        CALL FISOC_ArrayRedistFromField(RH_ESMF2WW3,fieldList(nn),distgridWW3,ptr,importArray,importArrayReady)
+!@----> Ki-Hwan Kim@20261117
+        IF (SIZE(ptr) /= NPA) THEN
+           CALL ESMF_LogWrite("WW3 import does not match NPA", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+           CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+        END IF
+
+        ! Only resident nodes contribute; halo values must not be summed again.
+        localInput = 0.0
+        do ii = 1, NP
+           localInput(ivertp(ii)) = REAL(ptr(ii))
+        enddo
+        CALL MPI_Allreduce(localInput, globalInput, NX, MPI_REAL, MPI_SUM, mpic, mpiError)
+        IF (mpiError /= MPI_SUCCESS) THEN
+           CALL ESMF_LogWrite("MPI_Allreduce failed for WW3 input", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+           CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+        END IF
+!@<---- Ki-Hwan Kim@20261117
+
+        SELECT CASE (TRIM(ADJUSTL(fieldName)))
+!@----> Ki-Hwan Kim@20261117
+        CASE ('OM_UU')
          !FLOW_UU(1:size(ptr)) = ptr
-         ALLOCATE(CXN_TMP(NPA,2))
-         do ii=1,size(ptr)
-         CXN_TMP(ii,1) = ptr(ii)
-         CXN_TMP(ii,2) = ptr(ii)
-	 end do
-	 CXN => CXN_TMP
-       DEALLOCATE(CXN_TMP)
-       CASE ('OM_VV')
-         ALLOCATE(CYN_TMP(NPA,2))
-	 do ii=1,size(ptr)
-         CYN_TMP(ii,1) = ptr(ii)
-         CYN_TMP(ii,2) = ptr(ii)
-	 end do
-	 CYN => CYN_TMP
-       DEALLOCATE(CYN_TMP)
+!JQI         ADCIRC_UU2(1:size(ptr),1) = ptr
+!JQI         ADCIRC_UU2(1:size(ptr),2) = ptr
+!JQI         IF(.NOT. ALLOCATED(CXN_TMP)) ALLOCATE(CXN_TMP(NPA,2))
+!@          ALLOCATE(CXN_TMP(NPA,2))
+!@          print*, 'OM_UU size ',size(CXN(:,1)),size(ptr),NPA
+!JQI         CXN(1:size(ptr),1) = ptr
+!JQI         CXN(1:size(ptr),2) = ptr
+!@          do ii=1,size(ptr)
+!@            CXN_TMP(ii,1) = ptr(ii)
+!@            CXN_TMP(ii,2) = ptr(ii)
+!JQI	   if(iplg(ii) == 611) write(60000+localPET,*) iplg(ii),CXN_TMP(ii,1)
+!JQI	   if(iplg(ii) == 99270) write(61000+localPET,*) iplg(ii),CXN_TMP(ii,1)
+!JQI	   if(iplg(ii) == 1799) write(62000+localPET,*) iplg(ii),CXN_TMP(ii,1)
+!@	       if(ivertp(ii) == 280) write(60000+localPET,*) ivertp(ii),CXN_TMP(ii,1)
+!@	       if(ivertp(ii) == 1463) write(61000+localPET,*) ivertp(ii),CXN_TMP(ii,1)
+!@	       if(ivertp(ii) == 112433) write(62000+localPET,*) ivertp(ii),CXN_TMP(ii,1)
+!@	     end do
+!@	 CXN => CXN_TMP
+!@       DEALLOCATE(CXN_TMP)
+          IF (.NOT. ASSOCIATED(CX0) .OR. .NOT. ASSOCIATED(CXN)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+          IF (SIZE(CX0,1) /= NX .OR. SIZE(CX0,2) /= 1 .OR. &
+              SIZE(CXN,1) /= NX .OR. SIZE(CXN,2) /= 1) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+          CX0(:,1) = globalInput
+          CXN(:,1) = globalInput
+          received(2) = .TRUE.
+        CASE ('OM_VV')
+         !FLOW_VV(1:size(ptr)) = ptr
+!JQI         ADCIRC_VV2(1:size(ptr),1) = ptr
+!JQI         ADCIRC_VV2(1:size(ptr),2) = ptr
+!JQI         CYN(1:size(ptr),1) = ptr
+!JQI         CYN(1:size(ptr),2) = ptr
+!@         ALLOCATE(CYN_TMP(NPA,2))
+!JQI         IF(.NOT. ALLOCATED(CYN_TMP)) ALLOCATE(CYN_TMP(NPA,2))
+!@	 do ii=1,size(ptr)
+!@         CYN_TMP(ii,1) = ptr(ii)
+!@         CYN_TMP(ii,2) = ptr(ii)
+!JQI	   if(iplg(ii) == 611) write(70000+localPET,*) iplg(ii),CYN_TMP(ii,1)
+!JQI	   if(iplg(ii) == 99270) write(71000+localPET,*) iplg(ii),CYN_TMP(ii,1)
+!JQI	   if(iplg(ii) == 1799) write(72000+localPET,*) iplg(ii),CYN_TMP(ii,1)
+!@	   if(ivertp(ii) == 280) write(70000+localPET,*) ivertp(ii),CYN_TMP(ii,1)
+!@	   if(ivertp(ii) == 1463) write(71000+localPET,*) ivertp(ii),CYN_TMP(ii,1)
+!@	   if(ivertp(ii) == 112433) write(72000+localPET,*) ivertp(ii),CYN_TMP(ii,1)
+!@	 end do
+!@	 CYN => CYN_TMP
+!@     DEALLOCATE(CYN_TMP)
+          IF (.NOT. ASSOCIATED(CY0) .OR. .NOT. ASSOCIATED(CYN)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+         IF (SIZE(CY0,1) /= NX .OR. SIZE(CY0,2) /= 1 .OR. &
+             SIZE(CYN,1) /= NX .OR. SIZE(CYN,2) /= 1) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+         CY0(:,1) = globalInput
+         CYN(:,1) = globalInput
+         received(3) = .TRUE.
        CASE ('OM_ETA')
          !FLOW_ETA(1:size(ptr)) = ptr
-         ALLOCATE(WLEV_TMP(NPA,2))
-         do ii=1,size(ptr)
-         WLEV_TMP(ii,1) = ptr(ii)
-         WLEV_TMP(ii,2) = ptr(ii)
-	 end do
-	 WLEV => WLEV_TMP
-       DEALLOCATE(WLEV_TMP)
+!JQI         ADCIRC_ETA2(1:size(ptr),1) = ptr
+!JQI         ADCIRC_ETA2(1:size(ptr),2) = ptr
+!JQIJQI         WLEV(1:size(ptr),1) = ptr
+!JQIJQI         WLEV(1:size(ptr),2) = ptr
+!@         ALLOCATE(WLEV_TMP(NPA,2))
+!JQI         IF(.NOT. ALLOCATED(WLEV_TMP)) ALLOCATE(WLEV_TMP(NPA,2))
+!@         do ii=1,size(ptr)
+!@         WLEV_TMP(ii,1) = ptr(ii)
+!@         WLEV_TMP(ii,2) = ptr(ii)
+!JQI	   if(iplg(ii) == 611) write(50000+localPET,*) iplg(ii),WLEV_TMP(ii,1)
+!JQI	   if(iplg(ii) == 99270) write(51000+localPET,*) iplg(ii),WLEV_TMP(ii,1)
+!JQI	   if(iplg(ii) == 1799) write(52000+localPET,*) iplg(ii),WLEV_TMP(ii,1)
+!@	   if(ivertp(ii) == 280) write(50000+localPET,*) ivertp(ii),iplg(ii),WLEV_TMP(ii,1)
+!@	   if(ivertp(ii) == 1463) write(51000+localPET,*) ivertp(ii),iplg(ii),WLEV_TMP(ii,1)
+!@	   if(ivertp(ii) == 112433) write(52000+localPET,*) ivertp(ii),iplg(ii),WLEV_TMP(ii,1)
+!@	 end do
+!@	 WLEV => WLEV_TMP
+!@       DEALLOCATE(WLEV_TMP)
+         IF (.NOT. ASSOCIATED(WLEV)) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+         IF (SIZE(WLEV,1) /= NX .OR. SIZE(WLEV,2) /= 1) CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+         WLEV(:,1) = globalInput
+         received(1) = .TRUE.
        CASE ('OM_HH')
-!JQI         ADCIRC_HH2(1:size(ptr)) = ptr
+         do ii = 1, NSEA
+           globalNode = MAPSF(ii,1)
+           IF (globalNode < 1 .OR. globalNode > NX .OR. MAPSF(ii,2) /= 1) THEN
+             CALL ESMF_LogWrite("Invalid WW3 sea-point map for OM_HH", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+             CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+           END IF
+           ZB(ii) = -globalInput(globalNode)
+         enddo
+         received(4) = .TRUE.
        CASE DEFAULT
          msg = "ERROR: unknown variable: "//TRIM(ADJUSTL(fieldName))
          CALL ESMF_LogWrite(msg, logmsgFlag=ESMF_LOGMSG_ERROR, &
@@ -624,6 +765,7 @@ CONTAINS
          CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
          
        END SELECT
+!@<---- Ki-Hwan Kim@20261117
  
        IF (ASSOCIATED(ptr)) THEN
          NULLIFY(ptr)
@@ -632,8 +774,14 @@ CONTAINS
      END IF
       
     END DO fieldLoop
-    deallocate(ivertp)
-    
+!@----> Ki-Hwan Kim@20261117
+!@    deallocate(ivertp)
+    IF ((FLAGSC(1) .AND. .NOT. received(1)) .OR. &
+        (FLAGSC(2) .AND. .NOT. ALL(received(2:3)))) THEN
+       CALL ESMF_LogWrite("Missing coupled elevation or current component", logmsgFlag=ESMF_LOGMSG_ERROR, rc=rc)
+       CALL ESMF_Finalize(endflag=ESMF_END_ABORT)
+    END IF
+!@<---- Ki-Hwan Kim@20261117
     rc = ESMF_SUCCESS
     
   END SUBROUTINE SendFieldDataToWM
@@ -691,11 +839,25 @@ CONTAINS
     ! Use ww3 grid variables directly, may need to use MODULE ALL_VARS
     ! and MODULE LIMS from WW3 library, see mod_main.F for details
     ! and module par for retreating  EGID NGID
+!JQI    SWAN_numNodes        = nverts
+!JQI    SWAN_numElems        = ncells
     WW3_numNodes        = NPA    
     WW3_numElems        = NE     
 !TODO: just use FVCOM vars directly, no need for intermediate vars, i.e. remove FVCOM_numNodes etc
 
-    nownv = NP 
+!JQI    nownv = count(ivertg>0)
+!JQI    nownv = count(iplg>0)
+!JQI    print*,"1 nownv = ",nownv
+    nownv = NP     !NPA    !M
+    print*,"2 nownv = ",nownv
+    
+!JQI    DO J = 1,NX
+!JQI      NodeIds_Global(J) = J
+!JQI    END DO  
+      
+    
+    print*,"node nubmer = ",NP,NG,NPA,NX
+    print*,"cell nubmer = ",NE,NTRI
     !
     allocate(ivertp(nownv))
     allocate(   xpl(nownv))
@@ -712,31 +874,59 @@ CONTAINS
     ALLOCATE(elemConn(WW3_numElems*3))
     ALLOCATE(elemTypes(WW3_numElems))
 
+!    ALLOCATE(nodeOwnersGL(nvertsg)) 
+!    ALLOCATE(nodeOwnersGL_recv(nvertsg)) 
     ALLOCATE(nodeOwnersGL(NX)) 
     ALLOCATE(nodeOwnersGL_recv(NX)) 
 
     ! Setup mask to avoid regridding ice variables in the open ocean.
     nodeMask = MASK_OPEN_OCEAN !without mask
+    !DO ii = 1, FVCOM_numNodes
+    !  IF (ISISFN(ii).EQ.OM_OPEN_OCEAN) nodeMask(ii) = MASK_OPEN_OCEAN
+    !END DO
+    !WHERE (ISISFN.EQ.OM_OPEN_OCEAN) nodeMask = MASK_OPEN_OCEAN
 
     ! Construct a global array of node owners in which an arbitrary decision is 
     ! taken about which partition boundary nodes should belong to.
     nodeOwnersGL = -1
     
+!    do j=1,nx
+!      write(100+localPET,*) j,ipgl(j)
+!    end do  
+!    do j=1,npa
+!      write(200+localPET,*) j,iplg(j)
+!    end do  
+
     ! determine node number per subdomain
     !
     k = 0
+!JQI    do j = 1, nverts
     do j = 1, NP       !NPA
+!JQI       if ( ivertg(j) > 0 ) then
        if ( iplg(j) > 0 ) then
           k = k + 1
           ivertp(k) = iplg(j)                           !ipgl(j)                   !ivertg(j)
           xpl   (k) = XGRD(1,iplg(J))                   !xcugrd(j) + XOFFS
           ypl   (k) = YGRD(1,iplg(J))                   !ycugrd(j) + YOFFS
+!JQI          nodeOwnersGL(ivertp(k))=localPET
           nodeOwnersGL(iplg(k))=localPET
           localNodeIds(k) = j
        endif
     enddo
     
+!    do j=1,npa
+!      write(200+localPET,*) j,ivertp(j)
+!    end do  
+
+
+    print*,"SIZE OF localNodeIds = ", size(localNodeIds),size(xpl),size(ypl),size(nodeOwnersGL),k
+    !DO nn=1,nownv
+    !  nodeOwnersGL(ivertp(nn))=localPET
+    !  localNodeIds(nn) = nn
+    !END DO
+!    CALL MPI_Allreduce(nodeOwnersGL,nodeOwnersGL_recv,nvertsg,MPI_INT,MPI_MAX,mpic,IERR)
     CALL MPI_Allreduce(nodeOwnersGL,nodeOwnersGL_recv,NX,MPI_INT,MPI_MAX,mpic,IERR)
+!    print*,"STOP HERE ??????????????????????? 1",MINVAL(nodeOwnersGL_recv)
 
     ! sanity check (we initialised owners to -1, but PET count starts at 0, so if it 
     ! works then all nodes should have been assigned an owner .GE. 0)
@@ -749,6 +939,7 @@ CONTAINS
 
     !populate nodeOwners from nodeOwnersGL
     DO ii = 1, WW3_numNodes
+!JQI      nodeOwners(ii) = nodeOwnersGL_recv(int(abs(ivertg(ii))))
       nodeOwners(ii) = nodeOwnersGL_recv(int(abs(iplg(ii))))
     END DO
     elemTypes         =  ESMF_MESHELEMTYPE_TRI
@@ -756,6 +947,7 @@ CONTAINS
     IF(localPET.EQ.0)then
       open(1,file='nodeowners_swan.dat',status='replace')
          do ii=1,ww3_numnodes
+!JQI           write(1,*)ii,int(abs(ivertg(ii))),nodeOwners(ii)
            write(1,*)ii,int(abs(iplg(ii))),nodeOwners(ii)
          end do
       close(1)
@@ -764,15 +956,20 @@ CONTAINS
     ! loop over to get nodeIds nodeCoords
     DO ii = 1, WW3_numNodes
        nn = (ii-1)*2
+!JQI       nodeIds(ii)      = int(abs(ivertg(ii)))
        nodeIds(ii)      = int(abs(iplg(ii)))
        
        SELECT CASE (WM_coords)
 
        CASE("spherical","Spherical","SPHERICAL")
           !CALL FISOC_MAPLL(nodeCoords(nn+1),nodeCoords(nn+2),LAT(ii),LON(ii))
+!JQI          nodeCoords(nn+1) = xcugrd(ii) + XOFFS
+!JQI          nodeCoords(nn+2) = ycugrd(ii) + YOFFS
           nodeCoords(nn+1) = XGRD(1,iplg(ii))
           nodeCoords(nn+2) = YGRD(1,iplg(ii))
        CASE DEFAULT
+!JQI          nodeCoords(nn+1) = xcugrd(ii) + XOFFS
+!JQI          nodeCoords(nn+2) = ycugrd(ii) + YOFFS
           nodeCoords(nn+1) = XGRD(1,iplg(ii))
           nodeCoords(nn+2) = YGRD(1,iplg(ii))
 
@@ -783,7 +980,11 @@ CONTAINS
     ! loop over to get elemConn
     DO ii = 1, WW3_numElems
        nn = (ii-1)*3
-       elemIds(ii)    = ielg(ii)         
+!JQI       elemIds(ii)    = int(abs(icellg(ii)))
+!JQI       elemConn(nn+1) = kvertc(1,ii)
+!JQI       elemConn(nn+2) = kvertc(2,ii)
+!JQI       elemConn(nn+3) = kvertc(3,ii)
+       elemIds(ii)    = ielg(ii)              !int(abs(icellg(ii)))
        elemConn(nn+1) = INE(1,ii)
        elemConn(nn+2) = INE(2,ii)
        elemConn(nn+3) = INE(3,ii)
